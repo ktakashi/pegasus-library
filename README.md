@@ -1,4 +1,10 @@
-pegasus-library
-===============
+Pegasus
+=======
 
-The source code to use Pegasus
+Repository manager for Sagittarius Scheme.
+
+TODO:
+ - Windows support
+ - Better error handling
+ - Documentation
+ - More commands such as list or search package
