@@ -48,13 +48,14 @@
   ;; for testing we need to make this parameter
   (define *configuration-directory*
     (make-parameter
-     (let ((home (or (getenv "HOME") ;; this is the strongest
-		     (getenv "USERPROFILE") ;; for windows
-		     )))
-       (build-path home ".pegasus"))))
+     (cond ((getenv "PEGASUS_CONFIG_DIR"))  ;; this is the strongest
+	   (else
+	    (let ((home (or (getenv "HOME") ;; for Cygin or POSIX
+			    (getenv "USERPROFILE") ;; for windows
+			 )))
+	      (build-path home ".pegasus"))))))
 
-  (define *configuration-filename*
-    (make-parameter "init.scm"))
+  (define *configuration-filename* (make-parameter "init.scm"))
 
   (define-constant +formula+   "formula")
   (define-constant +installed+ "installed")
@@ -78,7 +79,7 @@
 				 (*configuration-filename*)))
 	  (config `(pegasus (repositories (,nickname ,repository)))))
       (unless (file-exists? (*configuration-directory*))
-	(create-directory (*configuration-directory*)))
+	(create-directory* (*configuration-directory*)))
       (when (file-exists? init-file) (delete-file init-file))
       (call-with-output-file init-file (cut write config <>))))
 
@@ -90,14 +91,12 @@
   ;; TODO macro?
   (define (work-directory)
     (let ((dir (build-path (*configuration-directory*) +work+)))
-      (unless (file-exists? dir)
-	(create-directory* dir))
+      (unless (file-exists? dir) (create-directory* dir))
       dir))
 
   (define (installed-directory)
     (let ((dir (build-path (*configuration-directory*) +installed+)))
-      (unless (file-exists? dir)
-	(create-directory* dir))
+      (unless (file-exists? dir) (create-directory dir))
       dir))
 
 )

@@ -9,8 +9,9 @@ while [ $# -gt 1 ] ; do
     arg="$1"
     shift
     case $arg in
-	--prefix) PREFIX="$1" ; shift ;;
-	--sash)   SASH="$1"   ; shift ;;
+	--prefix) 	PREFIX="$1"       ; shift ;;
+	--sash)   	SASH="$1"         ; shift ;;
+	--config-dir)   CONFIG_DIR="$1"   ; shift ;;
     esac
 done
 
@@ -28,10 +29,17 @@ fi
 # The library will be installed into the Sagittarius sitelib
 $SASH -L$LIB ./bin/install.scm -l lib -w . -t $TARGET
 
+# the script
+PEGASUS="$PREFIX/bin/pegasus.scm"
+
 # create the bin file
 echo "-- Creating pegasus file"
 echo '#!/bin/sh' > pegasus
-echo "$SASH $PREFIX/bin/pegasus.scm \"\$@\"" >> pegasus
+if [ x"$CONFIG_DIR" = x ]; then
+    echo "$SASH $PEGASUS \"\$@\"" >> pegasus
+else
+    echo "env PEGASUS_CONFIG_DIR=\"$CONFIG_DIR\" $SASH $PEGASUS \"\$@\"" >> pegasus
+fi
 chmod +x pegasus
 # install pegasus
 echo "-- Installing: $PREFIX/bin/pegasus"
