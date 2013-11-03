@@ -6,6 +6,7 @@
 	(clos user)
 	(sagittarius control)
 	(getopt)
+	(util file)
 	(srfi :1 lists)
 	(srfi :26 cut))
 
