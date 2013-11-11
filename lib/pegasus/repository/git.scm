@@ -48,4 +48,7 @@
   (define-method update-repository ((git <git-repository-context>) version)
     (run "git" "checkout" version))
 
+  (define-method sync-repository ((git <git-repository-context>))
+    (run "git" "pull"))
+
   )

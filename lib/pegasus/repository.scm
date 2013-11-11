@@ -31,6 +31,7 @@
 (library (pegasus repository)
     (export clone-repository
 	    update-repository
+	    sync-repository
 	    repository)
     (import (rnrs) 
 	    (rnrs eval)

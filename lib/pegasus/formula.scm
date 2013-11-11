@@ -32,6 +32,8 @@
     (export read-formula
 	    find-formula
 
+	    find-formulas
+
 	    formula-package
 
 	    <homepage>
@@ -173,5 +175,16 @@
     (cond ((~ formula 'repository)
 	   => (lambda (r) (values 'repository r)))
 	  (else (values 'source (~ formula 'source)))))
+
+  (define (find-formulas :optional (pattern #f))
+    (let ((config (read-configuration)))
+      (let loop ((reps (~ config 'repositories)) (r '()))
+	(if (null? reps)
+	    r
+	    (let ((files (find-files (build-path* (*configuration-directory*)
+						  (caar reps)
+						  +formula+)
+				     :pattern (if pattern pattern #f))))
+	      (loop (cdr reps) `(,@files ,@r)))))))
 
 )

@@ -51,7 +51,8 @@ rm ./pegasus
 
 # initialise repository
 $PREFIX/bin/pegasus init
-$PREFIX/bin/pegasus update
+# init now clone and update will pull so not needed
+# $PREFIX/bin/pegasus update
 
 echo "Done!"
 

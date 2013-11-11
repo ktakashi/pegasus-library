@@ -29,8 +29,9 @@
   (when (null? (cdr args)) (usage args))
   (let ((command (string->symbol (cadr args)))
 	(args    (cddr args)))
+    (*prompt* prompt)
     (with-args args
 	((silent (#\s "silent") #f #f)
 	 . rest)
       (apply (lookup-command command usage) 
-	     `(,@rest ,@(if silent '() '("-v")) "--prompt" ,prompt)))))
+	     `(,@rest ,@(if silent '() '("-v")))))))

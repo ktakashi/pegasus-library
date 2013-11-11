@@ -41,6 +41,7 @@
   ;; for now we only need these 2
   (define-generic clone-repository)
   (define-generic update-repository)
+  (define-generic sync-repository)
 
   (define-generic make-repository-context)
 

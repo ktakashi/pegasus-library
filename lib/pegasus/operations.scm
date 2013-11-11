@@ -33,7 +33,8 @@
 	    remove
 	    define-command
 	    lookup-command
-	    all-commands)
+	    all-commands
+	    *prompt*)
     (import (rnrs) 
 	    (pegasus config)
 	    (pegasus formula)
@@ -71,7 +72,7 @@
     (hashtable-ref +command-table+ name fallback))
 
   ;; TODO implement user input prompt
-  (define (prompt) #t)
+  (define *prompt* (make-parameter (lambda ()#f)))
   
   ;; TODO add options
   (define-command (install package . rest)
@@ -81,7 +82,6 @@
        -v, --verbose\tShows installing process\n"
     (with-args rest
 	((verbose (#\v "verbose") #f #f)
-	 (prompt  (#\p "prompt") #t #f)
 	 . ignore)
       (let* ((formula (find-formula package))
 	     ;; resolve dependencies
@@ -99,14 +99,13 @@
 				  (not (null? (apply (lookup-command 'install)
 						     `(,p ,@(if verbose
 								'("-v")
-								'())
-							  "-p" ,prompt))))
+								'())))))
 				  ;; for information return package name
 				  p))))
 		       dependencies)))
 	;; check version
 	(cond ((not (null? results)) results)		 
-	      ((check-version formula prompt)
+	      ((check-version formula (*prompt*))
 	       ;; clone repository or get and unpack archiver
 	       (guard (e (else 
 			  (display "*ERROR* " (current-error-port))
@@ -137,8 +136,6 @@
     (with-args rest
 	((cascade (#\c "cascade") #f #f) 
 	 (verbose (#\v "verbose") #f #f)
-	 ;; ugly
-	 (prompt  (#\p "prompt") #t #f)
 	 . ignore)
       (let1 formula (if (is-a? package <formula>)
 			package
@@ -151,13 +148,31 @@
      Options:\n  \
        -n,--name\tNick name of this repository\n  \
        -r,--repository\tURL of the repository (must be Git repository)\n"
+    (define (err . msgs)
+      (for-each (lambda (msg) (display msg (current-error-port))) msgs)
+      (newline (current-error-port)))
     (with-args rest
 	((name (#\n "name") #t "master")
 	 (repo (#\r "repository") #t "https://github.com/ktakashi/pegasus.git")
-	 ;; ugly...
-	 (prompt  (#\p "prompt") #t #f)
 	 . ignore)
-      (create-config-file name repo)))
+      (create-config-file name repo)
+      ;;
+      (let ((config (read-configuration)))
+	(guard (e (else 
+		   (err "***ERROR***")
+		   (err "Failed to initialise the repository.")
+		   (err "Run following command to update manually; ")
+		   (err "$ cd " (*configuration-directory*))
+		   (for-each (lambda (rep)
+			       (err "$ git clone " (cadr rep) " " (car rep)))
+			     (~ config 'repositories))))
+	  (parameterize ((current-directory (*configuration-directory*)))
+	    (for-each (lambda (rep)
+			(clone-repository (make-repository-context 'git
+								   (cadr rep))
+					  (car rep)))
+		      (~ config 'repositories)))))
+      ))
 
   (define-command (update . rest)
     "update\n\
@@ -171,13 +186,28 @@
 		 (err "Failed to update the repository.")
 		 (err "Run following command to update manually; ")
 		 (err "$ cd " (*configuration-directory*))
-		 (for-each (lambda (rep)
-			     (err "$ git clone " (cadr rep) " " (car rep)))
+		 (for-each (lambda (rep) (err "$ git pull " (cadr rep)))
 			   (~ config 'repositories))))
 	(parameterize ((current-directory (*configuration-directory*)))
 	  (for-each (lambda (rep)
-		      (clone-repository (make-repository-context 'git
-								 (cadr rep))
-					(car rep)))
+		      (sync-repository (make-repository-context 'git
+								(cadr rep))))
 		    (~ config 'repositories))))))
+
+  (define-command (search . rest)
+    "search [-p=$pattern]\n\
+     Search repository."
+    (with-args rest
+	((pattern (#\p "pattern") #t #f)
+	 . ignore)
+      (let ((files (find-formulas pattern)))
+	(for-each (lambda (file)
+		    ;; read and get description
+		    (let ((formula (call-with-input-file file read))
+			  (name (path-sans-extension (path-basename file))))
+		      (format #t "~20a: ~a~%" name 
+			      (cond ((assq 'description formula) => cadr)
+				    (else "No description")))))
+		  files))))
+
 )
