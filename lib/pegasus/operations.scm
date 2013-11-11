@@ -210,4 +210,13 @@
 				    (else "No description")))))
 		  files))))
 
+  (define-command (help . rest)
+    "help command"
+    (for-each (lambda (command)
+		(let* ((name (string->symbol command))
+		       (doc  (hashtable-ref +help-table+ name #f)))
+		  (when doc
+		    (format #t "~a~%" doc))))
+	      rest))
+  
 )

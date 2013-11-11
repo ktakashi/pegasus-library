@@ -19,8 +19,9 @@
   (let1 commands (vector->list (all-commands))
     (print "pegasus command")
     (for-each (lambda (c) (print "  " c)) (map car commands))
+    (print "for more detail, use help command.")
     (newline)
-    (for-each (lambda (h) (print h)) (map cdr commands))
+    ;;(for-each (lambda (h) (print h)) (map cdr commands))
     (exit -1)))
 
 (define (main args)
