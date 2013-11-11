@@ -83,49 +83,55 @@
     (with-args rest
 	((verbose (#\v "verbose") #f #f)
 	 . ignore)
-      (let* ((formula (find-formula package))
-	     ;; resolve dependencies
-	     (dependencies (find-dependencies formula))
-	     (results (filter-map 
-		       (lambda (package&version) 
-			 (let ((p (car package&version))
-			       (v (cdr package&version)))
-			   (let-values (((version dep files) 
-					 (installed-package-info p)))
-			     ;; TODO check version?
-			     (and (not (and version (string=? version v)))
-				  ;; return #f if succeed to make
-				  ;; results empty
-				  (not (null? (apply (lookup-command 'install)
-						     `(,p ,@(if verbose
-								'("-v")
-								'())))))
-				  ;; for information return package name
-				  p))))
-		       dependencies)))
-	;; check version
-	(cond ((not (null? results)) results)		 
-	      ((check-version formula (*prompt*))
-	       ;; clone repository or get and unpack archiver
-	       (guard (e (else 
-			  (display "*ERROR* " (current-error-port))
-			  (when (who-condition? e)
-			    (format (current-error-port) "~a " 
-				    (condition-who e)))
-			  (when (message-condition? e)
-			    (format (current-error-port) "~a"
-				    (condition-message e)))
-			  (newline (current-error-port))
-			  (list package)))
-		 (let1 work-dir (retrieve-package formula :verbose verbose)
-		   (when (null? (run-tests formula work-dir :verbose verbose))
-		     (install-package formula work-dir :verbose verbose)
-		     ;; add child dependencies to parents
-		     (for-each (cut append-child-dependency <> formula) 
-			       (map car dependencies)))
-		   (clean-package work-dir :verbose verbose)
-		   '())))
-	      (else (list package))))))
+      (or
+       (and-let* ((formula (find-formula package)))
+	 (let* ((dependencies (find-dependencies formula))
+		;; resolve dependencies
+		(results (filter-map 
+			  (lambda (package&version) 
+			    (let ((p (car package&version))
+				  (v (cdr package&version)))
+			      (let-values (((version dep files) 
+					    (installed-package-info p)))
+				;; TODO check version?
+				(and (not (and version (string=? version v)))
+				     ;; return #f if succeed to make
+				     ;; results empty
+				     (not (null? 
+					   (apply (lookup-command 'install)
+						  `(,p ,@(if verbose
+							     '("-v")
+							     '())))))
+				     ;; for information return package name
+				     p))))
+			  dependencies)))
+	   ;; check version
+	   (cond ((not (null? results)) results)		 
+		 ((check-version formula (*prompt*))
+		  ;; clone repository or get and unpack archiver
+		  (guard (e (else 
+			     (display "*ERROR* " (current-error-port))
+			     (when (who-condition? e)
+			       (format (current-error-port) "~a " 
+				       (condition-who e)))
+			     (when (message-condition? e)
+			       (format (current-error-port) "~a"
+				       (condition-message e)))
+			     (newline (current-error-port))
+			     (list package)))
+		    (let1 work-dir (retrieve-package formula :verbose verbose)
+		      (when (null? (run-tests formula work-dir :verbose verbose))
+			(install-package formula work-dir :verbose verbose)
+			;; add child dependencies to parents
+			(for-each (cut append-child-dependency <> formula) 
+				  (map car dependencies)))
+		      (clean-package work-dir :verbose verbose)
+		      '())))
+		 (else (list package)))))
+       (begin
+	 (format (current-error-port) 
+		 "*ERROR* formula not found for ~a~%" package)
+	 '()))))
   
   (define-command (remove package . rest)
     "remove package [-c|v]\n\
@@ -211,7 +217,8 @@
 		  files))))
 
   (define-command (help . rest)
-    "help command"
+    "help command [command ...]\n\
+     Show help for target commands\n"
     (for-each (lambda (command)
 		(let* ((name (string->symbol command))
 		       (doc  (hashtable-ref +help-table+ name #f)))
