@@ -96,7 +96,7 @@
 	      ;; for now only supports http(s)
 	      (unless (string? scheme)
 		(error 'install "Invalid URL" url))
-	      (unless (string-prefix? scheme "http")
+	      (unless (string-prefix? "http" scheme)
 		(error 'install "URL scheme is not supported" url))
 	      (let*-values (((server path) (url-server&path url))
 			    ((status header body) 
@@ -104,7 +104,7 @@
 				       :secure (string=? scheme "https")
 				       :receiver (http-string-receiver))))
 		(if (string=? status "200")
-		    (read-formula package (open-input-string-port body))
+		    (read-formula package (open-string-input-port body))
 		    (begin
 		      (format (current-error-port)
 			      "*ERROR* failed to reado formula for ~a from ~a~%"
