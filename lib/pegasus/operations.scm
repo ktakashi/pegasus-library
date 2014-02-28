@@ -94,6 +94,8 @@
 	(if url
 	    (let-values (((scheme specific) (uri-scheme&specific url)))
 	      ;; for now only supports http(s)
+	      (unless (string? scheme)
+		(error 'install "Invalid URL" url))
 	      (unless (string-prefix? scheme "http")
 		(error 'install "URL scheme is not supported" url))
 	      (let*-values (((server path) (url-server&path url))
