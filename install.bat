@@ -23,7 +23,7 @@ set PEGASUS_SCM=%INSTALL%\pegasus.scm
 echo -- Creating pegasus file
 
 echo @echo off > "%PEGASUS_BIN%"
-echo "%SASH%" "%PEGASUS_SCM%" "%%*" >> "%PEGASUS_BIN%"
+echo "%SASH%" "%PEGASUS_SCM%" %%* >> "%PEGASUS_BIN%"
 
 echo -- Installing: %PEGASUS_BIN%
 

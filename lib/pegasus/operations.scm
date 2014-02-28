@@ -44,8 +44,11 @@
 	    (sagittarius control)
 	    (sagittarius object)
 	    (getopt)
+	    (rfc uri)
+	    (rfc http)
 	    (util file)
 	    (srfi :1 lists)
+	    (srfi :13 strings)
 	    (srfi :26 cut)
 	    (srfi :39 parameters))
 
@@ -76,15 +79,38 @@
   
   ;; TODO add options
   (define-command (install package . rest)
-    "install package [-v]\n\
+    "install pacakge [-u url][-v]\n\
      Installs the specified package.\n\
      Options:\n  \
+       -u, --url\n     \
+        Retrieve formula from speficied URL.\n     \
+        This doesn't resolve dependency by URL.\n  \
        -v, --verbose\tShows installing process\n"
     (with-args rest
-	((verbose (#\v "verbose") #f #f)
+	((url     (#\u "url") #t #f)
+	 (verbose (#\v "verbose") #f #f)
 	 . ignore)
+      (define (find/retrieve-formula)
+	(if url
+	    (let-values (((scheme specific) (uri-scheme&specific url)))
+	      ;; for now only supports http(s)
+	      (unless (string-prefix? scheme "http")
+		(error 'install "URL scheme is not supported" url))
+	      (let*-values (((server path) (url-server&path url))
+			    ((status header body) 
+			     (http-get server path
+				       :secure (string=? scheme "https")
+				       :receiver (http-string-receiver))))
+		(if (string=? status "200")
+		    (read-formula package (open-input-string-port body))
+		    (begin
+		      (format (current-error-port)
+			      "*ERROR* failed to reado formula for ~a from ~a~%"
+			      package url)
+		      #f))))
+	    (find-formula package)))
       (or
-       (and-let* ((formula (find-formula package)))
+       (and-let* ((formula (find/retrieve-formula)))
 	 (let* ((dependencies (find-dependencies formula))
 		;; resolve dependencies
 		(results (filter-map 
@@ -120,7 +146,8 @@
 			     (newline (current-error-port))
 			     (list package)))
 		    (let1 work-dir (retrieve-package formula :verbose verbose)
-		      (when (null? (run-tests formula work-dir :verbose verbose))
+		      (when (null? (run-tests formula work-dir
+					      :verbose verbose))
 			(install-package formula work-dir :verbose verbose)
 			;; add child dependencies to parents
 			(for-each (cut append-child-dependency <> formula) 
