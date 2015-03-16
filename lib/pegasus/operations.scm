@@ -35,7 +35,7 @@
 	    lookup-command
 	    all-commands
 	    *prompt*)
-    (import (rnrs) 
+    (import (except (rnrs) remove)
 	    (pegasus config)
 	    (pegasus formula)
 	    (pegasus package)
@@ -47,7 +47,7 @@
 	    (rfc uri)
 	    (rfc http)
 	    (util file)
-	    (srfi :1 lists)
+	    (except (srfi :1 lists) remove)
 	    (srfi :13 strings)
 	    (srfi :26 cut)
 	    (srfi :39 parameters))
