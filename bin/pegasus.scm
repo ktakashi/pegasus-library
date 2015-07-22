@@ -10,15 +10,18 @@
 	(srfi :1 lists)
 	(srfi :26 cut))
 
-;; TODO implement user input prompt
-(define (prompt) #t)
   
 ;; TODO add options
 
 (define (usage . args)
+  (print "pegasus: [-s][-q] command command-options...")
+  (print "  common options")
+  (print "    -s, --silent  no verbose message")
+  (print "    -f, --force   no prompt and install even if versions are different")
+  (newline)
   (let1 commands (vector->list (all-commands))
-    (print "pegasus command")
-    (for-each (lambda (c) (print "  " c)) (map car commands))
+    (print "  pegasus commands")
+    (for-each (lambda (c) (print "    " c)) (map car commands))
     (print "for more detail, use help command.")
     (newline)
     ;;(for-each (lambda (h) (print h)) (map cdr commands))
@@ -30,9 +33,10 @@
   (when (null? (cdr args)) (usage args))
   (let ((command (string->symbol (cadr args)))
 	(args    (cddr args)))
-    (*prompt* prompt)
     (with-args args
 	((silent (#\s "silent") #f #f)
+	 (quiet  (#\f "force") #f #f)
 	 . rest)
+      (when quiet (*prompt* #f))
       (apply (lookup-command command usage) 
 	     `(,@rest ,@(if silent '() '("-v")))))))

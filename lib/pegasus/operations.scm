@@ -73,56 +73,86 @@
 		   (vector-map cons keys entries))))
   (define (lookup-command name :optional (fallback all-commands))
     (hashtable-ref +command-table+ name fallback))
-
-  ;; TODO implement user input prompt
-  (define *prompt* (make-parameter (lambda ()#f)))
   
+  (define (default-prompt)
+    (let retry ()
+      (display "[y/n]> ")
+      (flush-output-port (current-output-port))
+      (let loop ()
+	(let1 l (get-line (current-input-port))
+	  (cond ((string-ci=? l "y") #t)
+		((string-ci=? l "n") #f)
+		(else 
+		 (display "'y' or 'n' is required. ")
+		 (retry)))))))
+  (define *prompt* (make-parameter default-prompt))
+
+  (define (user-prompt prefix)
+    (define prompt (*prompt*))
+    (lambda ()
+      (when prompt
+	(format #t "~a  Install it anyway?" prefix)
+	(flush-output-port (current-output-port))
+	(prompt))))
+
+  (define (find/retrieve-formula package url file)
+    (cond (url
+	   (let-values (((scheme specific) (uri-scheme&specific url)))
+	     ;; for now only supports http(s)
+	     (unless (string? scheme) (error 'install "Invalid URL" url))
+	     (unless (string-prefix? "http" scheme)
+	       (error 'install "URL scheme is not supported" url))
+	     (let*-values (((server path) (url-server&path url))
+			   ((status header body) 
+			    (http-get server path
+				      :secure (string=? scheme "https")
+				      :receiver (http-string-receiver))))
+	       (if (string=? status "200")
+		   (read-formula package (open-string-input-port body))
+		   (begin
+		     (format (current-error-port)
+			     "*ERROR* failed to reado formula for ~a from ~a~%"
+			     package url)
+		     #f)))))
+	  (file 
+	   (if (file-exists? file)
+	       (call-with-input-file file
+		 (lambda (in) (read-formula package in)))
+	       #f))
+	  (else (find-formula package))))
+
   ;; TODO add options
   (define-command (install package . rest)
-    "install pacakge [-u url][-v]\n\
+    "install pacakge [-u url][-v][-i file]\n\n\
      Installs the specified package.\n\
      Options:\n  \
        -u, --url\n     \
         Retrieve formula from speficied URL.\n     \
         This doesn't resolve dependency by URL.\n  \
+       -i, --file\n     \
+        Specifies formula with given file.\n     \
+        This is testing purpose.\n  \
+        If -u is specified with -f, then -u is used.\n  \
        -v, --verbose\tShows installing process\n"
     (with-args rest
 	((url     (#\u "url") #t #f)
+	 (file    (#\i "file") #t #f)
 	 (verbose (#\v "verbose") #f #f)
 	 . ignore)
-      (define (find/retrieve-formula)
-	(if url
-	    (let-values (((scheme specific) (uri-scheme&specific url)))
-	      ;; for now only supports http(s)
-	      (unless (string? scheme)
-		(error 'install "Invalid URL" url))
-	      (unless (string-prefix? "http" scheme)
-		(error 'install "URL scheme is not supported" url))
-	      (let*-values (((server path) (url-server&path url))
-			    ((status header body) 
-			     (http-get server path
-				       :secure (string=? scheme "https")
-				       :receiver (http-string-receiver))))
-		(if (string=? status "200")
-		    (read-formula package (open-string-input-port body))
-		    (begin
-		      (format (current-error-port)
-			      "*ERROR* failed to reado formula for ~a from ~a~%"
-			      package url)
-		      #f))))
-	    (find-formula package)))
       (or
-       (and-let* ((formula (find/retrieve-formula)))
-	 (let* ((dependencies (find-dependencies formula))
+       (and-let* ((formula (find/retrieve-formula package url file)))
+	 (let* ((dependencies (~ formula 'dependencies))
 		;; resolve dependencies
 		(results (filter-map 
-			  (lambda (package&version) 
-			    (let ((p (car package&version))
-				  (v (cdr package&version)))
+			  (lambda (dependency) 
+			    (let ((p (~ dependency 'name))
+				  (v (~ dependency 'version)))
 			      (let-values (((version dep files) 
 					    (installed-package-info p)))
 				;; TODO check version?
-				(and (not (and version (string=? version v)))
+				(and (not (and version 
+					       (check-version dependency
+							      (*prompt*))))
 				     ;; return #f if succeed to make
 				     ;; results empty
 				     (not (null? 
@@ -145,15 +175,21 @@
 			     (when (message-condition? e)
 			       (format (current-error-port) "~a"
 				       (condition-message e)))
+			     (when (irritants-condition? e)
+			       (format (current-error-port) " ~a"
+				       (condition-irritants e)))
 			     (newline (current-error-port))
 			     (list package)))
-		    (let1 work-dir (retrieve-package formula :verbose verbose)
-		      (when (null? (run-tests formula work-dir
-					      :verbose verbose))
+		    (let* ((work-dir (retrieve-package formula
+						       :verbose verbose))
+			   (test-results (run-tests formula work-dir
+						    :verbose verbose)))
+		      (when (or (null? test-results)
+				((user-prompt "Test failed:")))
 			(install-package formula work-dir :verbose verbose)
 			;; add child dependencies to parents
 			(for-each (cut append-child-dependency <> formula) 
-				  (map car dependencies)))
+				  (map (lambda (d) (~ d 'name)) dependencies)))
 		      (clean-package work-dir :verbose verbose)
 		      '())))
 		 (else (list package)))))
@@ -163,22 +199,27 @@
 	 '()))))
   
   (define-command (remove package . rest)
-    "remove package [-c|v]\n\
+    "remove package [-c|v][-u url][-i file]\n\n\
      Removes the specified package\n\
      Options:\n  \
-       -c,--cascade\tRemove child dependencies\n  \
-       -v,--verbose\tShow removing process\n"
+       -c,--cascade\tRemoves child dependencies\n  \
+       -u,--url\tUses formula on specified URL\n  \
+       -i,--file\tUses formula on specified file\n  \
+       -v,--verbose\tShows removing process\n"
+
     (with-args rest
 	((cascade (#\c "cascade") #f #f) 
 	 (verbose (#\v "verbose") #f #f)
+	 (url     (#\u "url") #t #f)
+	 (file    (#\i "file") #t #f)
 	 . ignore)
       (let1 formula (if (is-a? package <formula>)
 			package
-			(find-formula package))
+			(find/retrieve-formula package url file))
 	(remove-package formula :verbose verbose))))
 
   (define-command (init . rest)
-    "init [-n=master] [-r=https://github.com/ktakashi/pegasus.git]\n\
+    "init [-n=master] [-r=https://github.com/ktakashi/pegasus.git]\n\n\
      Initialise repository\n\
      Options:\n  \
        -n,--name\tNick name of this repository\n  \
@@ -210,7 +251,7 @@
       ))
 
   (define-command (update . rest)
-    "update\n\
+    "update\n\n\
      Updates the repository."
     (define (err . msgs)
       (for-each (lambda (msg) (display msg (current-error-port))) msgs)
@@ -230,8 +271,11 @@
 		    (~ config 'repositories))))))
 
   (define-command (search . rest)
-    "search [-p=$pattern]\n\
-     Search repository."
+    "search [-p $pattern]\n\n\
+     Searches repository.\n\
+     If no pattern is specified, then it shows all packages.\n\n\
+     Options:\n  \
+       -p $pattern, --pattern $pattern  specifies pattern of package."
     (with-args rest
 	((pattern (#\p "pattern") #t #f)
 	 . ignore)
@@ -246,13 +290,12 @@
 		  files))))
 
   (define-command (help . rest)
-    "help command [command ...]\n\
-     Show help for target commands\n"
+    "help command [command ...]\n\n\
+     Shows help for target commands\n"
     (for-each (lambda (command)
 		(let* ((name (string->symbol command))
 		       (doc  (hashtable-ref +help-table+ name #f)))
-		  (when doc
-		    (format #t "~a~%" doc))))
+		  (when doc (format #t "pegasus ~a~%" doc))))
 	      rest))
   
 )

@@ -33,7 +33,6 @@
     (export retrieve-package
 	    install-package
 	    clean-package
-	    find-dependencies
 	    append-child-dependency
 	    check-version
 	    installed-package-info
@@ -65,16 +64,19 @@
 	    (srfi :1 lists)
 	    (srfi :13 strings)
 	    (srfi :26 cut)
-	    (srfi :39 parameters))
+	    (srfi :39 parameters)
+	    (srfi :64 testing))
 
   (define (retrieve-package formula :key (verbose #f))
+    (define saved-dir (current-directory))
     ;; might be better to use temporary file
     ;; so that it won't use much memory
     (define (retrieve-source url)
       (let-values (((scheme user-info host port path query frag)
 		    (uri-parse url)))
 	(when verbose (format #t "-- Retrieving: ~a~%" url))
-	(cond ((or (string=? "http" scheme) (string=? "https" scheme))
+	(cond ((and scheme 
+		    (or (string=? "http" scheme) (string=? "https" scheme)))
 	       (let*-values (((server path) (url-server&path url))
 			     ((status _ body) 
 			      (http-get server path
@@ -84,9 +86,12 @@
 		   (error 'retrieve-package "failed to retrieve source archive"
 			  status server path))
 		 body))
-	      ((string=? "file" scheme) ;; mostly for testing
+	      ((or (not scheme) (string=? "file" scheme)) ;; mostly for testing
 	       ;; don't consider windows that much ...
-	       (file->bytevector path))
+	       (if (file-exists? path)
+		   (file->bytevector path)
+		   (let ((p (build-path saved-dir path)))
+		     (file->bytevector p))))
 	      (else
 	       (error 'retrieve-package "scheme is not supported" scheme)))))
     ;; FIXME ugly
@@ -233,21 +238,19 @@
 	(when verbose (format #t "-- Deleting working directory: ~a~%" work))
 	(delete-directory* work))))
 
-  ;; if the dependencies are not installed then return the
-  ;; names and version alist.
-  (define (find-dependencies formula)
-    (let ((dependencies (~ formula 'dependencies)))
-      (if dependencies
-	  (filter-map (lambda (d)
-			;; TODO check installed version
-			(cons (~ d 'name) (~ d 'version))) dependencies)
-	  '())))
-
   (define (check-version formula callback)
-    ;; TODO check installed version and call callback
-    (if callback
-	(callback)
-	#t))
+    (let-values (((package-version child-dependencies files)
+		  (installed-package-info (~ formula 'name))))
+      (unless (or (not package-version)
+		  (string=? package-version (~ formula 'version)))
+	(format #t 
+		"WARNING: '~a' is already installed: installed=~a, tareget=~a~%"
+		(~ formula 'name) package-version (~ formula 'version))
+	(if callback
+	    (begin
+	      (display "Install it anyway?")
+	      (callback))
+	    #t))))
 
   (define (append-child-dependency parent-name child-formula)
     (let ((path (build-path (installed-directory) parent-name)))
@@ -323,14 +326,20 @@
     (make-custom-textual-output-port "test-runner-port" write! #f #f #f))
 
   ;; check if the result is ok
-  (define-method check-result (style result)
+  (define-method check-result (style result env)
     (error 'check-result "style not supported" style))
 
   ;; TODO check the result
-  (define-method check-result ((style (eql 'srfi-64)) result)
-    #t)
+  (define-method check-result ((style (eql 'srfi-64)) result env)
+    ;; means we might have custom error reporter thus we need to
+    ;; check if all tests are passed.
+    ;; simple check
+    (and (not (#/unexpected/ result))
+	 (let ((runner (eval '(test-runner-current) env)))
+	   (and (zero? (test-runner-xpass-count runner))
+		(zero? (test-runner-fail-count runner))))))
 
-  (define-method check-result ((style (eql 'srfi-78)) result)
+  (define-method check-result ((style (eql 'srfi-78)) result env)
     ;; read line and check default srfi 78 report style...
     ;; TODO add more checks pattern
     (let* ((in (open-string-input-port result))
@@ -344,17 +353,17 @@
   (define (run-test test verbose)
     (let-values (((sink extractor) (open-string-output-port)))
       (define stdout (current-output-port))
+      (define env (environment '(only (sagittarius) 
+				      import library define-library)))
       (parameterize ((load-path (load-path)) ;; preserve load path
 		     (current-output-port (open-test-runner-port
 					   (current-output-port) sink)))
 	;; now we can add :)
 	(add-load-path (~ test 'loadpath))
 	(when verbose (format stdout "-- Running test: ~a~%" (~ test 'file)))
-	(load (~ test 'file)
-	      (environment '(only (sagittarius) 
-				  import library define-library))))
+	(load (~ test 'file) env))
       (let1 result (extractor)
-	(not (check-result (~ test 'style) result)))))
+	(not (check-result (~ test 'style) result env)))))
 
   (define (run-tests formula work-dir :key (verbose #f))
     (parameterize ((current-directory (build-path (work-directory) work-dir)))

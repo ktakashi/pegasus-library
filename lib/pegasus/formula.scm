@@ -55,6 +55,10 @@
 	    (srfi :26 cut)
 	    (util file))
 
+  (define-class <name&version-mixin> ()
+    ((name    :init-keyword :name)
+     (version :init-keyword :version :init-value #f)))
+
   (define-class <homepage> ()
     ((url  :init-keyword :url)))
 
@@ -73,9 +77,7 @@
   (define-class <source> (<library-mixin>)
     ((compression :init-keyword :compression)))
 
-  (define-class <dependency> ()
-    ((name    :init-keyword :name)
-     (version :init-keyword :version)))
+  (define-class <dependency> (<name&version-mixin>) ())
 
   (define-class <install> ()
     ((files :init-keyword :files :init-value '())
@@ -91,14 +93,12 @@
      (style :init-keyword :style :init-value 'srfi-64)
      (loadpath :init-keyword :loadpath :init-keyword ".")))
 
-  (define-class <formula> ()
-    ((name         :init-keyword :name)
-     (description  :init-keyword :description)
+  (define-class <formula> (<name&version-mixin>)
+    ((description  :init-keyword :description)
      (homepage     :init-keyword :homepage :init-value #f)
-     (version      :init-keyword :version :init-value #f)
      (author       :init-keyword :author)
      (sagittarius-version :init-keyword :sagittarius-version :init-value #f)
-     (dependencies :init-keyword :dependencies)
+     (dependencies :init-keyword :dependencies :init-value '())
      (repository   :init-keyword :repository :init-value #f)
      (source       :init-keyword :source :init-value #f)
      (install      :init-keyword :install)
@@ -148,7 +148,7 @@
 	  :sagittarius-version (and sg-ver (apply make <sagittarius-version> 
 						  (cdr sg-ver)))
 	  :author   (and auth (apply make <author> (cdr auth)))
-	  :dependencies (and deps (make-dependencies (cdr deps)))
+	  :dependencies (or (and deps (make-dependencies (cdr deps))) '())
 	  :repository (and repo (apply make <repository> (cdr repo)))
 	  :source   (and src (apply make <source> (cdr src)))
 	  :install  (make-install (cdr install))
