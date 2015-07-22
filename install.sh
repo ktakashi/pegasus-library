@@ -5,6 +5,20 @@ LIB=`pwd`/lib
 PREFIX=/usr/local
 SASH=sash
 
+usage()
+{
+    echo 'install.sh [OPTIONS] [target]'
+    echo ' OPTIONS:'
+    echo '  --prefix $prefix    the prefix of where to install Pegasus'
+    echo '  --sash   $sash      specifies which Sagittarius is used'
+    echo '  --config-dir $dir   specifies where to put local repository'
+    echo ' Targets:'
+    echo '  install   installs Pegasus'
+    echo '  remove    removes Pegasus'
+    echo '  help      shows this message'
+    exit 255;
+}
+
 while [ $# -gt 1 ] ; do
     arg="$1"
     shift
@@ -21,8 +35,8 @@ else
     case "$1" in
 	install) TARGET="install" ;;
 	remove)  TARGET="remove"  ;;
-	*)
-	    echo "unknown target: $1" ; exit -1 ;;
+	help)    usage; exit 0;;
+	*)       echo "unknown target: $1"; usage; exit 255;;
     esac
 fi
 
