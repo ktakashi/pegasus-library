@@ -265,10 +265,13 @@
 		 (err "$ cd " (*configuration-directory*))
 		 (for-each (lambda (rep) (err "$ git pull " (cadr rep)))
 			   (~ config 'repositories))))
-	(parameterize ((current-directory (*configuration-directory*)))
-	  (for-each (lambda (rep)
-		      (sync-repository (repository 'git (cadr rep))))
-		    (~ config 'repositories))))))
+	(for-each 
+	 (lambda (rep)
+	   (parameterize ((current-directory 
+			   (build-path (*configuration-directory*)
+				       (car rep))))
+	     (sync-repository (repository 'git (cadr rep)))))
+	 (~ config 'repositories)))))
 
   (define-command (search . rest)
     "search [-p $pattern]\n\n\

@@ -32,6 +32,7 @@
     (export <repository-context>
 	    clone-repository
 	    update-repository
+	    sync-repository
 	    make-repository-context)
     (import (clos user))
 
