@@ -267,8 +267,7 @@
 			   (~ config 'repositories))))
 	(parameterize ((current-directory (*configuration-directory*)))
 	  (for-each (lambda (rep)
-		      (sync-repository (make-repository-context 'git
-								(cadr rep))))
+		      (sync-repository (repository 'git (cadr rep))))
 		    (~ config 'repositories))))))
 
   (define-command (search . rest)
