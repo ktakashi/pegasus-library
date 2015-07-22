@@ -39,6 +39,7 @@
 	    (pegasus config)
 	    (pegasus formula)
 	    (pegasus package)
+	    (pegasus repository)
 	    (clos user)
 	    (sagittarius)
 	    (sagittarius control)
@@ -235,6 +236,7 @@
       ;;
       (let ((config (read-configuration)))
 	(guard (e (else 
+		   (report-error e)
 		   (err "***ERROR***")
 		   (err "Failed to initialise the repository.")
 		   (err "Run following command to update manually; ")
@@ -244,8 +246,7 @@
 			     (~ config 'repositories))))
 	  (parameterize ((current-directory (*configuration-directory*)))
 	    (for-each (lambda (rep)
-			(clone-repository (make-repository-context 'git
-								   (cadr rep))
+			(clone-repository (repository 'git (cadr rep))
 					  (car rep)))
 		      (~ config 'repositories)))))
       ))
