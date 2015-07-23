@@ -288,6 +288,27 @@
 				    (else "No description")))))
 		  files))))
 
+  (define-command (desc package . rest)
+    "desc package\n\n\
+     Shows detail information of the given package."
+    (and-let* ((formula (find-formula package)))
+      (format #t "Name: ~a~%" (~ formula 'name))
+      (format #t "Description: ~a~%" (or (~ formula 'description)
+					 "No description"))
+      (format #t "Version: ~a~%" (~ formula 'version))
+      (for-each (lambda (d)
+		  (format #t "Dependent on: ~a [~a]~%" 
+			  (~ d 'name) (~ d 'version)))
+		(~ formula 'dependencies))
+      (and-let* ((a (~ formula 'author)))
+	(format #t "Author: ~a<~a>~%"  (~ a 'name) (~ a 'email)))
+      (and-let* ((w (~ formula 'homepage)))
+	(format #t "Project site: ~a~%" (~ w 'url)))
+      (and-let* ((v (~ formula 'sagittarius-version)))
+	(format #t "Required Sagittarius version: ~a <= ~a~%"
+		(or (~ v 'minimum) "no limit")
+		(or (~ v 'maximum) "no limit")))))
+
   (define-command (help . rest)
     "help command [command ...]\n\n\
      Shows help for target commands\n"

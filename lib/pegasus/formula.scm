@@ -60,11 +60,11 @@
      (version :init-keyword :version :init-value #f)))
 
   (define-class <homepage> ()
-    ((url  :init-keyword :url)))
+    ((url  :init-keyword :url :init-keyword "no project site")))
 
   (define-class <author> ()
-    ((name  :init-keyword :name)
-     (email :init-keyword :email)))
+    ((name  :init-keyword :name :init-value "No name")
+     (email :init-keyword :email :init-value "no-email")))
 
   (define-class <library-mixin> ()
     ((type  :init-keyword :type)
