@@ -33,12 +33,15 @@
 	    *configuration-filename*
 	    +formula+ +installed+ +work+
 	    create-config-file
+	    add-repository
+	    remove-repository
 	    read-configuration
 	    ;; meta directories
 	    work-directory
 	    installed-directory
 	    )
     (import (rnrs)
+	    (rnrs mutable-pairs)
 	    (sagittarius)
 	    (srfi :26 cut)
 	    (srfi :39 parameters)
@@ -82,6 +85,42 @@
 	(create-directory* (*configuration-directory*)))
       (when (file-exists? init-file) (delete-file init-file))
       (call-with-output-file init-file (cut write config <>))))
+
+  (define (add-repository nickname repository)
+    (let* ((init-file (build-path (*configuration-directory*)
+				  (*configuration-filename*)))
+	   (config (call-with-input-file init-file (cut read <>)))
+	   (repos (assq 'repositories (cdr config))))
+      (if (assoc nickname (cdr repos))
+	  (error 'add-repository (format "~a already exists. remove it first"
+					 nickname)
+		 nickname repository)
+	  (begin
+	    (delete-file init-file)
+	    (call-with-output-file init-file 
+	      (lambda (in) 
+		(set-cdr! repos `((,nickname ,repository) ,@(cdr repos)))
+		(write config in)))))))
+  
+  (define (remove-repository nickname)
+    (let* ((init-file (build-path (*configuration-directory*)
+				  (*configuration-filename*)))
+	   (config (call-with-input-file init-file (cut read <>)))
+	   (alist (cdr config))
+	   (new-config `(pegasus (repositories 
+				  ,@(remp (lambda (r)
+					    (string=? (car r) nickname))
+					  (cdr (assq 'repositories alist))))
+				 ,@(remp (lambda (c)
+					   (eq? (car c) 'repositories))
+					 alist))))
+      (parameterize ((current-directory (*configuration-directory*)))
+	;; bug... of delete-directory*
+	;; it doesn't implicitly delete hidden file
+	(delete-directory* (build-path nickname ".git"))
+	(delete-directory* nickname))
+      (delete-file init-file)
+      (call-with-output-file init-file (cut write new-config <>))))
 
   (define (read-configuration)
     (let ((init-file (build-path (*configuration-directory*)

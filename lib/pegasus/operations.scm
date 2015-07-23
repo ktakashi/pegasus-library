@@ -48,6 +48,7 @@
 	    (rfc uri)
 	    (rfc http)
 	    (util file)
+	    (match)
 	    (except (srfi :1 lists) remove)
 	    (srfi :13 strings)
 	    (srfi :26 cut)
@@ -237,7 +238,6 @@
       ;;
       (let ((config (read-configuration)))
 	(guard (e (else 
-		   (report-error e)
 		   (err "***ERROR***")
 		   (err "Failed to initialise the repository.")
 		   (err "Run following command to update manually; ")
@@ -247,10 +247,12 @@
 			     (~ config 'repositories))))
 	  (parameterize ((current-directory (*configuration-directory*)))
 	    (for-each (lambda (rep)
-			(clone-repository (repository 'git (cadr rep))
-					  (car rep)))
-		      (~ config 'repositories)))))
-      ))
+			(let ((ctx (repository 'git (cadr rep))))
+			  (clone-repository ctx (car rep))
+			  (parameterize ((current-directory (car rep)))
+			    ;; must be a branch name
+			    (update-repository ctx (car rep)))))
+		      (~ config 'repositories)))))))
 
   (define-command (update . rest)
     "update\n\n\
@@ -273,6 +275,55 @@
 				       (car rep))))
 	     (sync-repository (repository 'git (cadr rep)))))
 	 (~ config 'repositories)))))
+
+  (define-command (repo . rest)
+    "repo command name [-r=https://github.com/ktakashi/pegasus.git]\n\n\
+     Adding repository\n\
+     Options:\n  \
+       -r,--repository\tURL of the repository (must be Git repository)\n"
+    (define (err . msgs)
+      (for-each (lambda (msg) (display msg (current-error-port))) msgs)
+      (newline (current-error-port)))
+    (define (next name repo)
+      (let ((config (read-configuration)))
+	(guard (e (else 
+		   (err "***ERROR***")
+		   (err "Failed to initialise the repository.")
+		   (err "Run following command to update manually; ")
+		   (err "$ cd " (*configuration-directory*))
+		   (for-each (lambda (rep)
+			       (err "$ git clone " (cadr rep) " " (car rep)))
+			     (~ config 'repositories))))
+	  (parameterize ((current-directory (*configuration-directory*)))
+	    (let ((ctx (repository 'git repo)))
+	      (clone-repository ctx name)
+	      (parameterize ((current-directory name))
+		;; must be a branch name
+		(update-repository ctx name)))))))
+
+    (define (add name repo)
+      (guard (e (else 
+		 (display "*ERROR* " (current-error-port))
+		 (when (who-condition? e)
+		   (format (current-error-port) "~a: " (condition-who e)))
+		 (when (message-condition? e)
+		   (format (current-error-port) "~a" (condition-message e)))
+		 (when (irritants-condition? e)
+		   (format (current-error-port) " ~a" (condition-irritants e)))
+		 (newline (current-error-port))
+		 #f))
+	(add-repository name repo)
+	#t))
+
+    (with-args rest
+	((repo (#\r "repository") #t "https://github.com/ktakashi/pegasus.git")
+	 (verbose (#\v "verbose") #f #t)
+	 . rest)
+      (match rest
+	(("add" name) (and (add name repo) (next name repo)))
+	(("remove" name) (remove-repository name))
+	(else (err "****ERROR***")
+	      (apply err "No such command " rest)))))
 
   (define-command (search . rest)
     "search [-p $pattern]\n\n\
