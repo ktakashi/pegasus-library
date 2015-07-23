@@ -77,6 +77,18 @@ Currently there is no sophisticated comparison/management between different
 versions. So if you want to install 2 different versions, then users need to
 choose either overwrite the one installed or quit installing.
 
+### `(sagittarius-version :minimum _version_ :maximum _version_)`: optional
+_verion_ must be a string and the same format as `(sagittarius-version)`
+returns. e.g.) 0.6.7
+
+Checks if the target Sagittarius version is in between _versions_. This
+is useful to detect if the target package is provided by the certain
+version of Sagittarius or not.
+
+`:minimum` and `:maximum` can be omit. If it's not presented, then it means
+no limit.
+
+
 ### `(homepage :url _url_)`: optional
 _url_ must be a string. Web URL of the project page.
 

@@ -150,13 +150,9 @@
 				  (v (~ dependency 'version)))
 			      (let-values (((version dep files) 
 					    (installed-package-info p)))
-				;; TODO check version?
-				(and (not (and version 
-					       (check-version dependency
-							      (*prompt*))))
-				     ;; return #f if succeed to make
-				     ;; results empty
-				     (not (null? 
+				;; return #f if succeed to make
+				;; results empty
+				(and (not (null? 
 					   (apply (lookup-command 'install)
 						  `(,p ,@(if verbose
 							     '("-v")
@@ -217,7 +213,7 @@
       (let1 formula (if (is-a? package <formula>)
 			package
 			(find/retrieve-formula package url file))
-	(remove-package formula :verbose verbose))))
+	(remove-package formula :verbose verbose :cascade cascade))))
 
   (define-command (init . rest)
     "init [-n=master] [-r=https://github.com/ktakashi/pegasus.git]\n\n\

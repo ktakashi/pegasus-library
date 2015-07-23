@@ -239,10 +239,37 @@
 	(delete-directory* work))))
 
   (define (check-version formula callback)
+    (define (check-sagittarius-version formula callback)
+      (define (check v)
+	(define (split v)
+	  (if v
+	      (map string->number (string-split v #/\./))
+	      '()))
+	(define (version<= min cur max)
+	  (define (comp<= a b)
+	    (let loop ((a a) (b b))
+	      (cond ((or (null? a) (null? b)) #t)
+		    ((<= (car a) (car b)) (loop (cdr a) (cdr b)))
+		    (else #f))))
+	  (and (comp<= min cur) (comp<= cur max)))
+
+	(let ((this (split (sagittarius-version)))
+	      (min  (split (~ v 'minimum)))
+	      (max  (split (~ v 'maximum))))
+	  (version<= min this max)))
+      (define (prompt v)
+	(format #t 
+	   "WARNING: Required Sagittarius version unmatched! min:~a, max:~a~%"
+	   (~ v 'minimum) (~ v 'maximum))
+	(display "Proceed?")
+	(callback))
+
+      (let ((v (~ formula 'sagittarius-version)))
+	(or (not v) (check v) (if callback (prompt v) #t))))
+
     (let-values (((package-version child-dependencies files)
 		  (installed-package-info (~ formula 'name))))
-      (unless (or (not package-version)
-		  (string=? package-version (~ formula 'version)))
+      (define (prompt)
 	(format #t 
 		"WARNING: '~a' is already installed: installed=~a, tareget=~a~%"
 		(~ formula 'name) package-version (~ formula 'version))
@@ -250,7 +277,11 @@
 	    (begin
 	      (display "Install it anyway?")
 	      (callback))
-	    #t))))
+	    #t))
+      (and (check-sagittarius-version formula callback)
+	   (or (not package-version)
+	       (string=? package-version (~ formula 'version))
+	       (prompt)))))
 
   (define (append-child-dependency parent-name child-formula)
     (let ((path (build-path (installed-directory) parent-name)))
@@ -281,42 +312,54 @@
 		    (cdr  (assq 'files contents))))
 	  (values #f '() '()))))
 
-  (define (remove-package formula :key (verbose #f))
-    (let-values (((package-version child-dependencies files)
-		  (installed-package-info (~ formula 'name))))
-      ;; TODO cascade?
-      (if (null? child-dependencies)
-	  (let ((dir (installed-directory))
-		(dependencies (~ formula 'dependencies)))
-	    (for-each (lambda (file)
-			(when verbose (format #t "Uninstalling: ~a~%" file))
-			(when (file-exists? file)
-			  (delete-file file))) files)
-	    ;; remove child-dependency info from installed
-	    (when dependencies
-	      (for-each (lambda (d)
-			  (let ((file (build-path dir (~ d 'name))))
-			    ;; TODO version?
-			    (let ((info (car (file->sexp-list file))))
-			      (cond ((assq 'children info) =>
-				     (lambda (slot)
-				       (let ((name (~ formula 'name)))
-					 ;; remove it
-					 (set-cdr! slot
-					  (remp (lambda (s)
-						  (string=? (car s) name))
-						(cdr slot))))))
-				    ;; something is wrong but ignore
-				    (else #f))
-			      (delete-file file)
-			      (call-with-output-file file
-				(lambda (out) (write/ss info out))))))
-			dependencies))
-	    ;; remove info file
-	    (let ((f (build-path dir (~ formula 'name))))
-	      (when (file-exists? f) (delete-file f))
-	      #t))
-	  (format #t "Child dependencies found: ~a~%" child-dependencies))))
+  (define (remove-package formula :key (verbose #f) (cascade #f))
+    (when verbose (format #t "-- Removing ~a~%" (~ formula 'name)))
+    (let retry ()
+      (let-values (((package-version child-dependencies files)
+		    (installed-package-info (~ formula 'name))))
+	(cond ((null? child-dependencies)
+	       (let ((dir (installed-directory))
+		     (dependencies (~ formula 'dependencies)))
+		 (for-each (lambda (file)
+			     (when verbose 
+			       (format #t "-- Uninstalling: ~a~%" file))
+			     (when (file-exists? file)
+			       (delete-file file))) files)
+		 ;; remove child-dependency info from installed
+		 (when dependencies
+		   (for-each (lambda (d)
+			       (let ((file (build-path dir (~ d 'name))))
+				 ;; TODO version?
+				 (let ((info (car (file->sexp-list file))))
+				   (cond ((assq 'children info) =>
+					  (lambda (slot)
+					    (let ((name (~ formula 'name)))
+					      ;; remove it
+					      (set-cdr! slot
+						(remp (lambda (s)
+							(string=? (car s) name))
+						      (cdr slot))))))
+					 ;; something is wrong but ignore
+					 (else #f))
+				   (delete-file file)
+				   (call-with-output-file file
+				     (lambda (out) (write/ss info out))))))
+			     dependencies))
+		 ;; remove info file
+		 (let ((f (build-path dir (~ formula 'name))))
+		   (when (file-exists? f) (delete-file f))
+		   (when verbose 
+		     (format #t "-- Removed ~a~%" (~ formula 'name)))
+		   #t)))
+	      (cascade
+	       (for-each (lambda (dep)
+			   (remove-package (find-formula (car dep))
+					   :verbose verbose :cascade #t))
+			 child-dependencies)
+	       (retry))
+	      (else
+	       (format #t "Child dependencies found: ~a~%"
+		       child-dependencies))))))
 
   (define (open-test-runner-port stdout sink)
     (define (write! str start count)
