@@ -177,16 +177,21 @@
 				       (condition-irritants e)))
 			     (newline (current-error-port))
 			     (list package)))
-		    (let* ((work-dir (retrieve-package formula
+		    (define work-dir (retrieve-package formula
 						       :verbose verbose))
-			   (test-results (run-tests formula work-dir
-						    :verbose verbose)))
+		    (unless (execute-script formula 'pre work-dir (*prompt*)
+					    :verbose verbose)
+		      (error 'pre-script-execution "Failed to execute script"))
+		    (let ((test-results (run-tests formula work-dir
+						   :verbose verbose)))
 		      (when (or (null? test-results)
 				((user-prompt "Test failed:")))
 			(install-package formula work-dir :verbose verbose)
 			;; add child dependencies to parents
 			(for-each (cut append-child-dependency <> formula) 
-				  (map (lambda (d) (~ d 'name)) dependencies)))
+				  (map (lambda (d) (~ d 'name)) dependencies))
+			(execute-script formula 'post work-dir #f  
+					:verbose verbose))
 		      (clean-package work-dir :verbose verbose)
 		      '())))
 		 (else (list package)))))

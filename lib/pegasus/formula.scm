@@ -93,6 +93,10 @@
      (style :init-keyword :style :init-value 'srfi-64)
      (loadpath :init-keyword :loadpath :init-keyword ".")))
 
+  (define-class <script> ()
+    ((pre  :init-keyword :pre  :init-value #f)
+     (post :init-keyword :post :init-value #f)))
+
   (define-class <formula> (<name&version-mixin>)
     ((description  :init-keyword :description)
      (homepage     :init-keyword :homepage :init-value #f)
@@ -102,7 +106,8 @@
      (repository   :init-keyword :repository :init-value #f)
      (source       :init-keyword :source :init-value #f)
      (install      :init-keyword :install)
-     (tests        :init-keyword :tests :init-value '())))
+     (tests        :init-keyword :tests :init-value '())
+     (script       :init-keyword :script :init-value #f)))
 
   (define (make-dependencies deps)
     (map (lambda (d)
@@ -134,7 +139,8 @@
 	     (src  (assq 'source info))
 	     (install (assq 'install info))
 	     (tests (assq 'tests info))
-	     (sg-ver  (assq 'sagittarius-version info)))
+	     (sg-ver  (assq 'sagittarius-version info))
+	     (script (assq 'script info)))
 	(when (or (and src repo) (not (or src repo)))
 	  (error 'read-formula "formula must have either repository or source"
 		 formula))
@@ -154,7 +160,8 @@
 	  :install  (make-install (cdr install))
 	  ;; don't check if the form is invalid ... should I?
 	  :tests    (and tests (map (lambda (t) (apply make <test> (cdr t)))
-				    (cdr tests)))))))
+				    (cdr tests)))
+	  :script (and script (apply make <script> (cdr script)))))))
 
   (define (find-formula package)
     (let ((config (read-configuration)))

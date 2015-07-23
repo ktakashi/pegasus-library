@@ -37,6 +37,7 @@
 	    check-version
 	    installed-package-info
 	    remove-package
+	    execute-script
 	    run-tests
 	    ;; might want to extend for future as plugin
 	    check-result)
@@ -396,8 +397,8 @@
   (define (run-test test verbose)
     (let-values (((sink extractor) (open-string-output-port)))
       (define stdout (current-output-port))
-      (define env (environment '(only (sagittarius) 
-				      import library define-library)))
+      ;; make it the same as default
+      (define env (environment '(core) '(core base) '(sagittarius)))
       (parameterize ((load-path (load-path)) ;; preserve load path
 		     (current-output-port (open-test-runner-port
 					   (current-output-port) sink)))
@@ -415,6 +416,28 @@
 	    (filter-map (cut run-test <> verbose) tests)
 	    '()))))
 	  
-	
+  (define (execute-script formula type dir callback :key (verbose #f))
+    ;; for convenience, we imports some basic libraries
+    (define env (environment '(rnrs) '(sagittarius)))
+    (parameterize ((current-directory (build-path (work-directory) dir)))
+      (let ((script (~ formula 'script)))
+	(if script
+	    (let ((this (~ script type)))
+	      (if this
+		  (guard (e (else 
+			     (when verbose 
+			       (format #t "-- Failed to run ~a script~%" type)
+			       (when (who-condition? e)
+				 (format #t "--  ~a~%" (condition-who e)))
+			       (when (message-condition? e)
+				 (format #t "--  ~a~%" (condition-message e)))
+			       (when (irritants-condition? e)
+				 (format #t "--  ~a~%"
+					 (condition-irritants e))))
+			     #f))
+		    (when verbose (format #t "-- Running ~a script~%" type))
+		    (for-each (lambda (e) (eval e env)) this))
+		  #t))
+	    #t))))
       
   )
