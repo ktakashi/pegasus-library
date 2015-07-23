@@ -237,7 +237,10 @@
     (let ((path (work-directory)))
       (parameterize ((current-directory path))
 	(when verbose (format #t "-- Deleting working directory: ~a~%" work))
-	(delete-directory* work))))
+	(delete-directory* work)
+	(for-each delete-directory* 
+		  (filter (lambda (s) (not (eqv? (string-ref s 0) #\.)))
+			  (read-directory "."))))))
 
   (define (check-version formula callback)
     (define (check-sagittarius-version formula callback)
