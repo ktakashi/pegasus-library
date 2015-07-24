@@ -226,7 +226,7 @@
      Initialise repository\n\
      Options:\n  \
        -n,--name\tNick name of this repository\n  \
-       -r,--repository\tURL of the repository (must be Git repository)\n"
+       -r,--repository\tURL of the repository (must be a Git repository)\n"
     (define (err . msgs)
       (for-each (lambda (msg) (display msg (current-error-port))) msgs)
       (newline (current-error-port)))
@@ -278,13 +278,19 @@
 
   (define-command (repo . rest)
     "repo command name [-r=https://github.com/ktakashi/pegasus.git]\n\n\
-     Adding repository\n\
-     Options:\n  \
-       -r,--repository\tURL of the repository (must be Git repository)\n"
+     Managing repository\n\
+     Commands:\
+     \n  add     - Adds specified repository of 'name' branch.\
+     \n  remove  - Removes 'name' repositoty configuration.\
+     \n  show    - Shows all configured repository.\n\
+     Options:\
+     \n  -r,--repository\
+     \n\tURL of the repository to add (must be a Git repository)\
+     \n\tThis option is only relevant for 'add' command"
     (define (err . msgs)
       (for-each (lambda (msg) (display msg (current-error-port))) msgs)
       (newline (current-error-port)))
-    (define (next name repo)
+    (define (next name repo verbose)
       (let ((config (read-configuration)))
 	(guard (e (else 
 		   (err "***ERROR***")
@@ -299,9 +305,11 @@
 	      (clone-repository ctx name)
 	      (parameterize ((current-directory name))
 		;; must be a branch name
-		(update-repository ctx name)))))))
+		(update-repository ctx name))))
+	  (when verbose (display "-- Done!") (newline)))))
 
-    (define (add name repo)
+    (define (add name repo verbose)
+      (when verbose (format #t "-- Adding ~a of ~a~%" name repo))
       (guard (e (else 
 		 (display "*ERROR* " (current-error-port))
 		 (when (who-condition? e)
@@ -320,10 +328,19 @@
 	 (verbose (#\v "verbose") #f #t)
 	 . rest)
       (match rest
-	(("add" name) (and (add name repo) (next name repo)))
-	(("remove" name) (remove-repository name))
-	(else (err "****ERROR***")
-	      (apply err "No such command " rest)))))
+	(("add" name) (and (add name repo verbose) (next name repo verbose)))
+	(("remove" name) 
+	 (when verbose (format #t "-- Removing ~a~%" name))
+	 (remove-repository name)
+	 (when verbose (display "-- Done!") (newline)))
+	(("show" . ignore) 
+	 (display "Configured repositories [branch name - repository URL]")
+	 (newline)
+	 (let ((config (read-configuration)))
+	   (for-each (lambda (rep)
+		       (format #t "  ~a - ~a~%" (car rep) (cadr rep)))
+		     (~ config 'repositories))))
+	(else (help "repo")))))
 
   (define-command (search . rest)
     "search [-p $pattern]\n\n\
