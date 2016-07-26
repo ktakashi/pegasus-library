@@ -38,6 +38,7 @@
 	    installed-package-info
 	    remove-package
 	    execute-script
+	    report-condition
 	    run-tests
 	    ;; might want to extend for future as plugin
 	    check-result)
@@ -397,20 +398,32 @@
 			     (cut get-line in))))
       (for-all (cut eqv? #t <>) checks)))
 
+  (define (report-condition e port)
+    (display "*ERROR* " port)
+    (when (who-condition? e)
+      (format port "~a "  (condition-who e)))
+    (when (message-condition? e)
+      (format port "~a" (condition-message e)))
+    (when (irritants-condition? e)
+      (format port " ~a" (condition-irritants e)))
+    (newline port))
+
   (define (run-test test verbose)
     (let-values (((sink extractor) (open-string-output-port)))
       (define stdout (current-output-port))
       ;; make it the same as default
       (define env (environment '(core) '(core base) '(sagittarius)))
-      (parameterize ((load-path (load-path)) ;; preserve load path
-		     (current-output-port (open-test-runner-port
-					   (current-output-port) sink)))
-	;; now we can add :)
-	(add-load-path (~ test 'loadpath))
-	(when verbose (format stdout "-- Running test: ~a~%" (~ test 'file)))
-	(load (~ test 'file) env))
-      (let1 result (extractor)
-	(not (check-result (~ test 'style) result env)))))
+      ;; returns non null result on error
+      (guard (e (else (report-condition e (current-error-port)) '(failed)))
+	(parameterize ((load-path (load-path)) ;; preserve load path
+		       (current-output-port (open-test-runner-port
+					     (current-output-port) sink)))
+	  ;; now we can add :)
+	  (add-load-path (~ test 'loadpath))
+	  (when verbose (format stdout "-- Running test: ~a~%" (~ test 'file)))
+	  (load (~ test 'file) env))
+	(let1 result (extractor)
+	  (not (check-result (~ test 'style) result env))))))
 
   (define (run-tests formula work-dir :key (verbose #f))
     (parameterize ((current-directory (build-path (work-directory) work-dir)))

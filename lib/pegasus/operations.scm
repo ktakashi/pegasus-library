@@ -165,19 +165,8 @@
 	   (cond ((not (null? results)) results)		 
 		 ((check-version formula (*prompt*))
 		  ;; clone repository or get and unpack archiver
-		  (guard (e (else 
-			     (display "*ERROR* " (current-error-port))
-			     (when (who-condition? e)
-			       (format (current-error-port) "~a " 
-				       (condition-who e)))
-			     (when (message-condition? e)
-			       (format (current-error-port) "~a"
-				       (condition-message e)))
-			     (when (irritants-condition? e)
-			       (format (current-error-port) " ~a"
-				       (condition-irritants e)))
-			     (newline (current-error-port))
-			     (list package)))
+		  (guard (e (else (report-condition e (current-error-port))
+				  (list package)))
 		    (define work-dir (retrieve-package formula
 						       :verbose verbose))
 		    (unless (execute-script formula 'pre work-dir (*prompt*)
