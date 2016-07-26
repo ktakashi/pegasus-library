@@ -182,8 +182,9 @@
 				  (map (lambda (d) (~ d 'name)) dependencies))
 			(execute-script formula 'post work-dir #f  
 					:verbose verbose))
-		      (clean-package work-dir :verbose verbose)
-		      '())))
+		      (cond ((clean-package work-dir :verbose verbose) '())
+			    (((user-prompt "Cleanup failed:")) '())
+			    (else (list package))))))
 		 (else (list package)))))
        (begin
 	 (format (current-error-port) 
