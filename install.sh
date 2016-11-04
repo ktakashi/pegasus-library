@@ -3,7 +3,7 @@
 LIB=`pwd`/lib
 
 PREFIX=/usr/local
-SASH=sash
+SASH=sagittarius
 
 usage()
 {

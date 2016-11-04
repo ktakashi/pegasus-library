@@ -39,4 +39,4 @@
 	  (args    (cddr rest)))
       (when quiet (*prompt* #f))
       (apply (lookup-command command usage) 
-	     `(,@rest ,@(if silent '() '("-v")))))))
+	     `(,@args ,@(if silent '() '("-v")))))))
