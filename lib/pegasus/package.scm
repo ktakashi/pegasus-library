@@ -421,7 +421,10 @@
 		       (current-output-port (open-test-runner-port
 					     (current-output-port) sink)))
 	  ;; now we can add :)
-	  (add-load-path (~ test 'loadpath))
+	  (let ((loadpath (~ test 'loadpath)))
+	    (if (string? loadpath)
+		(add-load-path loadpath)
+		(for-each add-load-path loadpath)))
 	  (when verbose (format stdout "-- Running test: ~a~%" (~ test 'file)))
 	  (load (~ test 'file) env))
 	(let1 result (extractor)
